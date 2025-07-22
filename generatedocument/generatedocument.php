@@ -122,16 +122,7 @@ class CBPGenerateDocument extends CBPActivity
     $documentService = $runtime->GetService("DocumentService");
 
     $arMap = array(
-      'idDoc' => 'id_doc',
-      'ArrayString' => 'array_string',
-      'Urldocument' => 'url_document',
-      'AddSection' => 'add_section',
-      'NameArrayString' => 'name_array_string',
-      'Number' => 'number',
-      'Array2String' => 'array2_string',
-      'NameArray2String' => 'name_array2_string',
-      'Array3String' => 'array3_string',
-      'NameArray3String' => 'name_array3_string'
+      'idDoc' => 'id_doc'
     );
 
     if (!is_array($arCurrentValues)) {
@@ -172,16 +163,7 @@ class CBPGenerateDocument extends CBPActivity
     $arErrors = array();
     $runtime = CBPRuntime::GetRuntime();
     $arMap = array(
-      'idDoc' => 'id_doc',
-      'ArrayString' => 'array_string',
-      'Urldocument' => 'url_document',
-      'AddSection' => 'add_section',
-      'NameArrayString' => 'name_array_string',
-      'Number' => 'number',
-      'Array2String' => 'array2_string',
-      'NameArray2String' => 'name_array2_string',
-      'Array3String' => 'array3_string',
-      'NameArray3String' => 'name_array3_string'
+      'idDoc' => 'id_doc'
     );
     $arProperties = array();
 
