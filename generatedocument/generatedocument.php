@@ -71,8 +71,10 @@ public function Execute()
     );
 
     if (!$convertedFile) {
+      
         $this->WriteToTrackingService("Ошибка загрузки PDF в Disk");
         unlink($pdfPath);
+        $this->ConvertedFileId = 0;
         return CBPActivityExecutionStatus::Closed;
     }
 
