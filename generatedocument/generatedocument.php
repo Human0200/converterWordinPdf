@@ -1,9 +1,6 @@
-
 <?php
 if (!defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true)
     die();
-
-require_once __DIR__ . '/vendor/autoload.php';
 
 use Bitrix\Main\Loader;
 use Bitrix\Disk\File;
@@ -24,68 +21,69 @@ class CBPGenerateDocument extends CBPActivity
         ]);
     }
 
-    public function Execute()
-    {
-        if (!Loader::includeModule('disk')) {
-            $this->WriteToTrackingService("Модуль disk не подключен", 0, CBPTrackingType::Error);
-            return CBPActivityExecutionStatus::Closed;
-        }
-
-        // Обработка входящего ID
-        $idDoc = is_array($this->idDoc) ? (int)$this->idDoc[0] : (int)$this->idDoc;
-        $this->WriteToTrackingService("Начало конвертации. ID файла: " . $idDoc, 0, CBPTrackingType::Report);
-
-        // Получаем исходный файл
-        $sourceFile = File::getById($idDoc);
-        if (!$sourceFile) {
-            $this->WriteToTrackingService("Файл с ID $idDoc не найден", 0, CBPTrackingType::Error);
-            return CBPActivityExecutionStatus::Closed;
-        }
-
-        // Путь к исходному DOCX
-        $srcPath = $_SERVER['DOCUMENT_ROOT'] . $sourceFile->getFile()["SRC"];
-        if (!file_exists($srcPath)) {
-            $this->WriteToTrackingService("Файл не существует по пути: $srcPath", 0, CBPTrackingType::Error);
-            return CBPActivityExecutionStatus::Closed;
-        }
-
-        // Конвертация в PDF
-        $pdfPath = $this->convertToPdf($srcPath);
-        if (!$pdfPath) {
-            return CBPActivityExecutionStatus::Closed;
-        }
-
-        // Загрузка PDF в Disk (в ту же папку, где исходный файл)
-        $storage = $sourceFile->getStorage();
-        $folder = $sourceFile->getParent();
-        
-        $fileArray = \CFile::MakeFileArray($pdfPath);
-        $fileArray['name'] = basename($sourceFile->getName(), '.docx') . '.pdf';
-
-        $convertedFile = $folder->uploadFile(
-            $fileArray,
-            [
-                'CREATED_BY' => $GLOBALS['USER']->GetID(),
-                'NAME' => $fileArray['name']
-            ]
-        );
-
-        if (!$convertedFile) {
-            $this->WriteToTrackingService("Ошибка загрузки PDF в Disk", 0, CBPTrackingType::Error);
-            unlink($pdfPath);
-            return CBPActivityExecutionStatus::Closed;
-        }
-
-        // Возвращаем ID нового файла ->getFileId(); - это айди физического файла
-        $this->ConvertedFileId = $convertedFile->getId();
-        
-        $this->WriteToTrackingService("PDF создан. ID: " . $convertedFile->getId(), 0, CBPTrackingType::Report);
-
-        // Удаляем временный PDF
-        unlink($pdfPath);
-
+public function Execute()
+{
+    if (!Loader::includeModule('disk')) {
+        $this->WriteToTrackingService("Модуль disk не подключен");
         return CBPActivityExecutionStatus::Closed;
     }
+
+    // Обработка входящего ID
+    $idDoc = is_array($this->idDoc) ? (int)$this->idDoc[0] : (int)$this->idDoc;
+    $this->WriteToTrackingService("Начало конвертации. ID файла: " . $idDoc);
+
+    // Получаем исходный файл
+    $sourceFile = File::getById($idDoc);
+    if (!$sourceFile) {
+        $this->WriteToTrackingService("Файл с ID $idDoc не найден");
+        return CBPActivityExecutionStatus::Closed;
+    }
+
+    // Получаем URL файла
+    $fileurl = $sourceFile->getFile()["SRC"];
+
+    // Путь к исходному DOCX
+    $srcPath = $_SERVER['DOCUMENT_ROOT'] . $fileurl;
+    if (!file_exists($srcPath)) {
+        $this->WriteToTrackingService("Файл не существует по пути: $srcPath");
+        return CBPActivityExecutionStatus::Closed;
+    }
+
+    // Конвертация в PDF
+    $pdfPath = $this->convertToPdf($srcPath);
+    if (!$pdfPath) {
+        return CBPActivityExecutionStatus::Closed;
+    }
+
+    // Загрузка PDF в Disk (в ту же папку, где исходный файл)
+    $storage = $sourceFile->getStorage();
+    $folder = $sourceFile->getParent();
+    
+    $fileArray = \CFile::MakeFileArray($pdfPath);
+    $fileArray['name'] = basename($sourceFile->getName(), '.docx') . '.pdf';
+
+    $convertedFile = $folder->uploadFile(
+        $fileArray,
+        [
+            'CREATED_BY' => $GLOBALS['USER']->GetID(),
+            'NAME' => $fileArray['name']
+        ]
+    );
+
+    if (!$convertedFile) {
+        $this->WriteToTrackingService("Ошибка загрузки PDF в Disk");
+        unlink($pdfPath);
+        return CBPActivityExecutionStatus::Closed;
+    }
+
+    // Возвращаем ID нового файла ->getFileId(); - это айди физического файла
+    $this->ConvertedFileId = $convertedFile->getId();
+
+    // Удаляем временный PDF
+    unlink($pdfPath);
+
+    return CBPActivityExecutionStatus::Closed;
+}
 
     /**
      * Конвертация DOCX в PDF через LibreOffice
