@@ -11,8 +11,8 @@ class CBPGenerateDocument extends CBPActivity
     {
         parent::__construct($name);
         $this->arProperties = [
-            'idDoc' => null,           // ID исходного файла (DOCX)
-            'ConvertedFileId' => null  // ID созданного PDF (результат)
+            'idDoc' => null,           
+            'ConvertedFileId' => null  
         ];
 
         $this->SetPropertiesTypes([
@@ -55,24 +55,46 @@ public function Execute()
         return CBPActivityExecutionStatus::Closed;
     }
 
-    // Загрузка PDF в Disk (в ту же папку, где исходный файл)
-    $storage = $sourceFile->getStorage();
+    
     $folder = $sourceFile->getParent();
     
     $fileArray = \CFile::MakeFileArray($pdfPath);
-    $fileArray['name'] = basename($sourceFile->getName(), '.docx') . '.pdf';
-
-    $convertedFile = $folder->uploadFile(
-        $fileArray,
-        [
-            'CREATED_BY' => $GLOBALS['USER']->GetID(),
-            'NAME' => $fileArray['name']
-        ]
-    );
+    $baseName = basename($sourceFile->getName(), '.docx');
+    $originalFileName = $baseName . '.pdf';
+    
+    // Пытаемся загрузить файл с оригинальным именем или с суффиксами (1), (2) и т.д.
+    $convertedFile = null;
+    $attempt = 0;
+    $maxAttempts = 10; 
+    
+    while ($attempt < $maxAttempts) {
+        $fileName = $attempt === 0 
+            ? $originalFileName 
+            : $baseName . " ($attempt).pdf";
+        
+        $fileArray['name'] = $fileName;
+        
+        try {
+            $convertedFile = $folder->uploadFile(
+                $fileArray,
+                [
+                    'CREATED_BY' => $GLOBALS['USER']->GetID(),
+                    'NAME' => $fileName
+                ]
+            );
+            
+            if ($convertedFile) {
+                break;
+            }
+        } catch (\Exception $e) {
+            // Игнорируем ошибку и пробуем снова
+        }
+        
+        $attempt++;
+    }
 
     if (!$convertedFile) {
-      
-        $this->WriteToTrackingService("Ошибка загрузки PDF в Disk");
+        $this->WriteToTrackingService("Ошибка загрузки PDF в Disk после $maxAttempts попыток");
         unlink($pdfPath);
         $this->ConvertedFileId = 0;
         return CBPActivityExecutionStatus::Closed;
@@ -90,31 +112,31 @@ public function Execute()
     /**
      * Конвертация DOCX в PDF через LibreOffice
      */
-    private function convertToPdf(string $docxPath): ?string
-    {
-        $outputDir = sys_get_temp_dir();
-        $libreofficePath = 'libreoffice'; // Для Windows: '"C:\Program Files\LibreOffice\program\soffice.exe"'
+private function convertToPdf(string $docxPath): ?string
+{
+    $outputDir = sys_get_temp_dir();
+    $libreofficePath = 'libreoffice'; // Для Windows: '"C:\Program Files\LibreOffice\program\soffice.exe"'
 
-        $command = sprintf(
-            '%s --headless --convert-to pdf --outdir %s %s',
-            $libreofficePath,
-            escapeshellarg($outputDir),
-            escapeshellarg($docxPath)
+    $command = sprintf(
+        '%s --headless --convert-to pdf --outdir %s %s',
+        $libreofficePath,
+        escapeshellarg($outputDir),
+        escapeshellarg($docxPath)
+    );
+
+    exec($command, $output, $returnCode);
+
+    if ($returnCode !== 0) {
+        $this->WriteToTrackingService(
+            "Ошибка конвертации: " . implode("\n", $output),
+            0,
+            CBPTrackingType::Error
         );
-
-        exec($command, $output, $returnCode);
-
-        if ($returnCode !== 0) {
-            $this->WriteToTrackingService(
-                "Ошибка конвертации: " . implode("\n", $output),
-                0,
-                CBPTrackingType::Error
-            );
-            return null;
-        }
-
-        return $outputDir . '/' . pathinfo($docxPath, PATHINFO_FILENAME) . '.pdf';
+        return null;
     }
+
+    return $outputDir . '/' . pathinfo($docxPath, PATHINFO_FILENAME) . '.pdf';
+}
 
   public static function GetPropertiesDialog($documentType, $activityName, $arWorkflowTemplate, $arWorkflowParameters, $arWorkflowVariables, $arCurrentValues = null, $formName = "", $popupWindow = null)
   {
